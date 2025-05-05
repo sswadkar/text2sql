@@ -126,7 +126,7 @@ def find_top_k_examples(prompt, k=3):
     return [examples[i] for i in top_indices]
 
 if __name__ == "__main__":
-    user_prompt = "List the names of users who ordered a product in the 'electronics' category and gave it a rating below 3."
+    user_prompt = "List the names of users who ordered electronics gave them a rating below 3."
     k = 3
     results = find_top_k_examples(user_prompt, k)
     
