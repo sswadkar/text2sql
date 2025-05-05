@@ -219,3 +219,4 @@ SQL:
 
     completion = json.loads(response["body"].read())
     print(completion["content"][0]["text"].strip())
+
