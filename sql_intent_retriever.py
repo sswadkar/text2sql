@@ -2,9 +2,9 @@ import hashlib
 import json
 import boto3
 import os
-import joblib
+import numpy as np
 from dotenv import load_dotenv
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 load_dotenv()
@@ -102,32 +102,42 @@ examples = [
     },
 ]
 
+# Cache directory and file paths
+CACHE_DIR = ".cache_st"
+os.makedirs(CACHE_DIR, exist_ok=True)
+HASH_FILE = os.path.join(CACHE_DIR, "example_hash.txt")
+VEC_FILE = os.path.join(CACHE_DIR, "embeddings.npy")
+MODEL_FILE = os.path.join(CACHE_DIR, "model_name.txt")
+
+# Hash the examples
 example_json = json.dumps(examples, sort_keys=True)
 example_hash = hashlib.sha256(example_json.encode()).hexdigest()
 
+# Load SentenceTransformer model
+model_name = "all-MiniLM-L6-v2"
+model = SentenceTransformer(model_name)
+
+# Load or recompute
 if os.path.exists(HASH_FILE) and open(HASH_FILE).read() == example_hash:
-    vectorizer = joblib.load(VEC_FILE)
-    tfidf_matrix = joblib.load(MAT_FILE)
+    embeddings = np.load(VEC_FILE)
 else:
     questions = [e["question"] for e in examples]
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(questions)
-    
-    # Cache the results
+    embeddings = model.encode(questions, normalize_embeddings=True)
     with open(HASH_FILE, "w") as f:
         f.write(example_hash)
-    joblib.dump(vectorizer, VEC_FILE)
-    joblib.dump(tfidf_matrix, MAT_FILE)
+    np.save(VEC_FILE, embeddings)
+    with open(MODEL_FILE, "w") as f:
+        f.write(model_name)
 
 def find_top_k_examples(prompt, k=3):
-    prompt_vec = vectorizer.transform([prompt])
-    similarities = cosine_similarity(prompt_vec, tfidf_matrix).flatten()
+    prompt_vec = model.encode([prompt], normalize_embeddings=True)
+    similarities = cosine_similarity(prompt_vec, embeddings).flatten()
     top_indices = similarities.argsort()[-k:][::-1]
     return [examples[i] for i in top_indices]
 
 if __name__ == "__main__":
-    user_prompt = "List the names of users who ordered a product in the 'electronics' category and gave it a rating below 3."
-    k = 3
+    user_prompt = "List the names of users who ordered electronics gave them a rating below 3."
+    k = 2
     results = find_top_k_examples(user_prompt, k)
     
     example_string = ""
